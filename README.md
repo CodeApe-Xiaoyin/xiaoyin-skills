@@ -1,6 +1,6 @@
 # Neat-Freak Enhanced
 
-> 基于原 `neat-freak` Skill 的二次整理与增强版本。  
+> 基于原 `khazix-skills/tree/main/neat-freak` Skill 的二次整理与增强版本。  
 > 本项目不是原作者仓库，仅用于个人学习、工作流优化和上下文交接实践。
 
 ## 免责声明
