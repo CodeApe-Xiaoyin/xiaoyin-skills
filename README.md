@@ -1,6 +1,6 @@
 # Neat — AI Coding Agent 项目知识库管理 Skill
 
-> **让 AI Agent 在多轮对话、多次会话、多人协作中不丢失项目进度。**
+> **让 AI Agent 在多轮对话、多次会话、多人协作中不丢失项目进度。下一个 Agent 只需读取 CLAUDE.md + HANDOFF.md 即可接手。**
 
 Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、OpenClaw 等）的 **Skill 插件**，用于自动同步项目文档、管理上下文交接和控制文档膨胀。
 
@@ -8,7 +8,7 @@ Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、O
 
 ## 致谢 & 原始出处
 
-本项目基于 **[KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak)** 进行二次开发和优化。
+本项目基于 **[KKKKhazix/khazix-skills/neat-freak](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak)** 进行二次开发和优化。
 
 感谢原作者的设计理念和初始实现。当前版本（0.4）在原版基础上进行了以下改进：
 - 全面结构化（YAML 格式），降低 Skill 自身 token 消耗
@@ -17,7 +17,7 @@ Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、O
 - Next Session Prompt 从 5 个合并为 2 个，去除重复
 - 新增 monorepo 支持、跨平台能力降级、并发写入检测
 
-如需查看原版实现，请访问：**https://github.com/khazix-skills/tree/main/neat-freak**
+如需查看原版实现，请访问：**https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak**
 
 ---
 
@@ -28,7 +28,7 @@ AI 编程 Agent 存在三个核心痛点：
 | 痛点 | 表现 | Neat 的解决方式 |
 |------|------|----------------|
 | **上下文丢失** | 对话过长后 Agent 忘记之前做了什么 | Checkpoint 模式：用最少 token 保存当前开发现场 |
-| **跨会话断档** | 新会话完全不知道上一轮进度 | HANDOFF.md：结构化交接文档，新 Agent 30 秒接手 |
+| **跨会话断档** | 新会话完全不知道上一轮进度 | HANDOFF.md：结构化交接文档，新 Agent 只读 2 个文件即可接手 |
 | **文档膨胀** | CLAUDE.md / docs 越写越长越乱 | 行数预算 + 重写策略 + 自动归档 |
 
 ---
@@ -249,15 +249,10 @@ source: committed
 - Active: 尝试用 cookie 存 JWT，Safari SameSite 问题无法解决，改用 Authorization header
 
 ## Validation
-build: passed
-tests: passed (12/12)
-typecheck: passed
-manual: not done
-
-## Evidence
-- Verified: tests passed via `npm test` output
-- Inferred: Safari 兼容性基于文档推断
-- Unknown: 生产环境性能
+build: passed (verified: npm run build output clean)
+tests: passed 12/12 (verified: npm test output)
+typecheck: passed (verified: tsc --noEmit exit 0)
+manual: not done (unknown)
 
 ## Next
 1. 实现 refresh token 轮换逻辑
@@ -284,8 +279,8 @@ manual: not done
 
 ### 防密钥泄露
 
-- 自动检测 `sk-`、`Bearer`、`ghp_`、`DATABASE_URL=` 等 40+ 种敏感模式
-- 高熵随机字符串启发式检测
+- 自动检测 `sk-`、`Bearer`、`ghp_`、`DATABASE_URL=`、`api_key` 等近 20 种敏感关键词（不含过于宽泛的 `token`，避免误脱敏）
+- 高熵随机字符串启发式检测（32+ 字符 base64/hex 在赋值上下文中）
 - 写入任何文件前自动扫描
 
 ### 防文档膨胀
@@ -370,10 +365,10 @@ neat:
 |------|---------|
 | 0.2 (原版) | 基于 khazix-skills/neat-freak 的初始实现 |
 | 0.3 | 全面结构化（YAML），新增能力探测、monorepo 支持、token 预算 |
-| **0.4** | 触发词→模式一步映射，删除冗余上下文阈值，Next Session Prompt 合并精简，新增 sync_status / Failed 保留 / reset 模式完整步骤，行数预算替代 token 预算 |
+| **0.4** | 触发词→模式一步映射，删除冗余上下文阈值，Next Session Prompt 合并精简，新增 sync_status / Failed 保留 / reset 模式完整步骤，行数预算替代 token 预算，修复密钥误检测、Validation 格式统一、checkpoint 步骤明确化、HANDOFF 区块分级 |
 
 ---
 
 ## License
 
-本项目基于 **[KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak)** 二次开发。请遵循原项目的许可协议。
+本项目基于 [KKKKhazix/khazix-skills/neat-freak](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak) 二次开发。请遵循原项目的许可协议。

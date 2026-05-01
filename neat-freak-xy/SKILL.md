@@ -12,7 +12,7 @@ description: "Project documentation, memory, checkpoint, and handoff cleanup ski
 ## 核心目标
 
 1. **知识库同步** — `CLAUDE.md`/`AGENTS.md`、`README.md`、`docs/`、Agent memory 与代码保持一致
-2. **上下文接力** — 最小 token 成本生成交接快照，下一个 Agent ≤ 2000 tokens 即可接手
+2. **上下文接力** — 最小 token 成本生成交接快照，下一个 Agent 只需读取 CLAUDE.md + HANDOFF.md 即可接手
 
 ---
 
@@ -26,7 +26,7 @@ description: "Project documentation, memory, checkpoint, and handoff cleanup ski
 | 4 | 不让文档变长 | HANDOFF 无限追加 | 每次重写当前状态快照 |
 | 5 | 不跨分支误导 | 省略分支/commit | 必须记录 Git 上下文 |
 | 6 | 不默认全读 docs | 新会话读取所有文件 | 只读 CLAUDE.md + HANDOFF.md |
-| 7 | 不存储可推导信息 | HANDOFF 写完整文件列表 | 写 `verify: git diff --stat` |
+| 7 | 不存储可推导的完整列表 | HANDOFF 写完整文件列表或目录树 | 只列 3-5 个关键改动文件 + 原因 |
 | 8 | 稳态不进 HANDOFF | HANDOFF 重复技术栈信息 | 稳态只存 CLAUDE.md |
 
 ---
@@ -93,11 +93,13 @@ modes:
 
   reset:
     goal: 归档现有 neat 产出物，从当前代码状态重新生成
+    definition: reset = 归档旧文档 + 执行一次 full 模式生成新文档
+    difference_from_full: full 在现有文档基础上整理；reset 先清空再重建，适用于文档已严重过期或混乱的情况
     steps:
       1: 将现有 HANDOFF.md 移动到 docs/archive/HANDOFF-YYYY-MM-DD.md
       2: 将现有 SESSION_LOG.md 移动到 docs/archive/SESSION_LOG-YYYY-MM-DD.md
       3: 在归档文件头部添加 "Status: Archived" 标记
-      4: 从当前 Git 状态和代码重新生成 HANDOFF.md
+      4: 按 full 模式流程从当前 Git 状态和代码重新生成 HANDOFF.md
       5: 检查 CLAUDE.md 是否需要更新
       6: 输出摘要说明归档了什么、重建了什么
     budget: 同 full
@@ -181,7 +183,8 @@ evidence_levels:
 
 ```yaml
 sensitive_check:
-  keywords: [sk-, Bearer, Authorization, password, passwd, token, secret, cookie, PRIVATE KEY, DATABASE_URL=, refresh_token, access_token, ghp_, ghu_, whsec_, xoxb-, rk-, ssm_]
+  keywords: [sk-, Bearer, Authorization, password, passwd, secret, cookie, PRIVATE KEY, DATABASE_URL=, refresh_token, access_token, ghp_, ghu_, whsec_, xoxb-, rk-, ssm_, api_key, apikey]
+  note: 不含独立的 "token"（太宽泛），具体 token 类型已由 refresh_token/access_token 覆盖，其余由 heuristic 规则捕获
   heuristic: 32+ 字符高熵随机字符串（base64/hex）出现在赋值上下文中 → 脱敏
   action: 替换为 <redacted>
   timing: 写入任何文件前扫描新内容
@@ -220,13 +223,15 @@ handoff_rules:
       这些条目在下一次 handoff/full 执行时才转入 SESSION_LOG。
   
   staleness_check: |
-    写入前读取现有 HANDOFF.md。
-    如果 HANDOFF 中 commit 字段与当前 git log -1 不一致，
-    说明代码可能在两次 session 之间被修改。
-    在新 HANDOFF 中标注 "Inferred: code changed since last handoff"。
+    仅在新会话启动读取 HANDOFF 时检查（不在写入时检查，写入时 commit 不一致是本轮正常开发的预期行为）。
+    检查逻辑：对比 HANDOFF 的 commit 字段与当前 git log -1。
+    如果不一致 → 提醒用户"HANDOFF 可能过期，代码在上次 handoff 后被修改过"。
+    由新会话启动协议的步骤 4 执行。
   
   no_repeat_from: CLAUDE.md 中已有的稳态信息
-  no_store_derivable: 可通过 git 命令 3 秒内获取的信息不存储
+  no_store_derivable:
+    exclude: [完整 git log, 完整 diff 内容, 完整文件列表, 完整目录树, 大段代码]
+    exception: 本轮关键修改文件（3-5 个）+ 改动原因应保留在 Modified Files 区块
   no_template_boilerplate: 不含固定指令文字（"Read This First" 等写入 CLAUDE.md）
 
   sync_status: |
@@ -362,14 +367,27 @@ source: committed | uncommitted | mixed | unknown
 ---
 ```
 
+正文区块优先级：
+
+```yaml
+handoff_sections:
+  required_all_modes: [State, Done, Pending, Validation, Next]
+  required_handoff_full: [Modified Files, Risks, Failed]
+  optional: [Manual Notes, Reference]
+  rule: checkpoint 时只写 required_all_modes，其余按需；handoff/full 写全部 required + 按需 optional
+```
+
 正文（Markdown）：
 
 ```md
 ## State
-一句话描述当前项目状态
+一句话描述当前项目状态（必须包含项目名 + 当前功能模块，让不读 CLAUDE.md 也能大致理解上下文）
 
 ## Done
 - 已完成事项（连续 checkpoint 时保留前次条目）
+
+## Modified Files
+- path/to/key-file — 一句话说明改了什么（仅列 3-5 个关键文件）
 
 ## Pending
 - 未完成任务
@@ -382,15 +400,10 @@ source: committed | uncommitted | mixed | unknown
 - Resolved: 已解决（下次更新时可移除）
 
 ## Validation
-build: passed | failed | not run | unknown
-tests: passed | failed | not run | unknown
-typecheck: passed | failed | not run | unknown
-manual: done | not done | unknown
-
-## Evidence
-- Verified: xxx
-- Inferred: xxx
-- Unknown: xxx
+build: status (verified/inferred/unknown: source)
+tests: status (verified/inferred/unknown: source)
+typecheck: status (verified/inferred/unknown: source)
+manual: status (verified/inferred/unknown: source)
 
 ## Next
 1. 第一步
@@ -491,7 +504,10 @@ execution:
   12: 将 HANDOFF.md 的 sync_status 改为 complete
   13: 自检 + 输出摘要
 
-  checkpoint_rule: 保证 HANDOFF.md 完整即可，不为整理所有文档耗尽上下文
+  mode_skip:
+    checkpoint: 跳过步骤 7（SESSION_LOG）、8（其他 docs）、10（README），保证 HANDOFF.md 完整即可
+    handoff: 全部执行
+    full: 全部执行 + full_scan_rule
   full_scan_rule: docs/ 文件多时先扫描文件名列表（ls docs/），按变更影响矩阵判断哪些需读正文
 ```
 
@@ -572,19 +588,33 @@ sync_complete:
 
 下一轮 Prompt 语言规则：跟随 CLAUDE.md 语言；如不存在，跟随本轮对话主语言。
 
-### 标准版（checkpoint / handoff / full 共用）
+### 标准版（checkpoint / handoff 使用）
 
 ```text
-请先阅读 CLAUDE.md / AGENTS.md 和 docs/HANDOFF.md。
-[如果是 full 模式后续：额外阅读 README.md]
-不要修改代码。
+请先阅读 CLAUDE.md / AGENTS.md 和 docs/HANDOFF.md。不要修改代码。
 
 请先总结：
 1. 项目状态和 Git 信息
 2. 已完成/未完成任务
 3. 风险和验证状态
 4. 下一步建议
-[如果是 full 模式后续，额外总结：5. 技术栈 6. 文档体系]
+
+如果 HANDOFF 的 commit 与当前 git log -1 不一致，先指出。
+需要更多文件请先说明理由，等确认后再读。
+```
+
+### Full 版（full 模式使用）
+
+```text
+请先阅读 CLAUDE.md / AGENTS.md、README.md 和 docs/HANDOFF.md。不要修改代码。
+
+请先总结：
+1. 项目状态和 Git 信息
+2. 已完成/未完成任务
+3. 风险和验证状态
+4. 下一步建议
+5. 技术栈概况
+6. 文档体系组织
 
 如果 HANDOFF 的 commit 与当前 git log -1 不一致，先指出。
 需要更多文件请先说明理由，等确认后再读。
@@ -620,7 +650,7 @@ sync_complete:
 prompt_output:
   checkpoint: 标准版
   handoff: 标准版
-  full: 标准版（含 full 额外项）
+  full: Full 版
   emergency: 应急版
   rule: 最终摘要必须输出可复制的完整 Prompt，不要只写"请读 HANDOFF.md"
 ```
