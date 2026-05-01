@@ -325,4 +325,4 @@ neat:
 
 ## License
 
-本项目基于 [khazix-skills/neat-freak](https://github.com/khazix-skills/tree/main/neat-freak) 二次开发。请遵循原项目的许可协议。
+本项目基于 **[KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak)** 二次开发。请遵循原项目的许可协议。
