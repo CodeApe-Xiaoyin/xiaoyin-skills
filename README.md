@@ -8,7 +8,7 @@ Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、O
 
 ## 致谢 & 原始出处
 
-本项目基于 **[khazix-skills/neat-freak](https://github.com/khazix-skills/tree/main/neat-freak)** 进行二次开发和优化。
+本项目基于 **[KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/main/neat-freak)** 进行二次开发和优化。
 
 感谢原作者的设计理念和初始实现。当前版本（0.4）在原版基础上进行了以下改进：
 - 全面结构化（YAML 格式），降低 Skill 自身 token 消耗
@@ -17,7 +17,7 @@ Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、O
 - Next Session Prompt 从 5 个合并为 2 个，去除重复
 - 新增 monorepo 支持、跨平台能力降级、并发写入检测
 
-如需查看原版实现，请访问：**https://github.com/khazix-skills/tree/main/neat-freak**
+如需查看原版实现，请访问：**https://github.com/KKKKhazix/khazix-skills/tree/main**
 
 ---
 
