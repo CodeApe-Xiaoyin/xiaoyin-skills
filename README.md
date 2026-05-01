@@ -17,7 +17,7 @@ Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、O
 - Next Session Prompt 从 5 个合并为 2 个，去除重复
 - 新增 monorepo 支持、跨平台能力降级、并发写入检测
 
-如需查看原版实现，请访问：**https://github.com/KKKKhazix/khazix-skills/tree/main**
+如需查看原版实现，请访问：**https://github.com/khazix-skills/tree/main/neat-freak**
 
 ---
 
@@ -104,20 +104,71 @@ AI 编程 Agent 存在三个核心痛点：
 
 ## 安装方式
 
-### Claude Code
+### 方式一：curl 远程拉取（推荐）
 
-将 `SKILL_neat_0.4.md` 文件放入你的 Skill 目录：
+**全局安装（所有项目可用）：**
 
 ```bash
-# 全局安装（所有项目可用）
-cp SKILL_neat_0.4.md ~/.claude/skills/neat.md
-
-# 项目级安装（仅当前项目）
-mkdir -p .claude/skills
-cp SKILL_neat_0.4.md .claude/skills/neat.md
+mkdir -p ~/.claude/skills
+curl -fsSL https://raw.githubusercontent.com/CodeApe-Xiaoyin/xiaoyin-skills/main/neat-freak-xy/SKILL.md \
+  -o ~/.claude/skills/neat.md
 ```
 
-### 其他 Agent
+**项目级安装（仅当前项目）：**
+
+```bash
+mkdir -p .claude/skills
+curl -fsSL https://raw.githubusercontent.com/CodeApe-Xiaoyin/xiaoyin-skills/main/neat-freak-xy/SKILL.md \
+  -o .claude/skills/neat.md
+```
+
+**Windows（PowerShell）：**
+
+```powershell
+# 全局安装
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills" | Out-Null
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/CodeApe-Xiaoyin/xiaoyin-skills/main/neat-freak-xy/SKILL.md" `
+  -OutFile "$env:USERPROFILE\.claude\skills\neat.md"
+
+# 项目级安装
+New-Item -ItemType Directory -Force -Path ".claude\skills" | Out-Null
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/CodeApe-Xiaoyin/xiaoyin-skills/main/neat-freak-xy/SKILL.md" `
+  -OutFile ".claude\skills\neat.md"
+```
+
+### 方式二：克隆仓库
+
+```bash
+git clone https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
+# 全局安装
+mkdir -p ~/.claude/skills
+cp xiaoyin-skills/neat-freak-xy/SKILL.md ~/.claude/skills/neat.md
+# 或项目级安装
+mkdir -p .claude/skills
+cp xiaoyin-skills/neat-freak-xy/SKILL.md .claude/skills/neat.md
+```
+
+### 方式三：手动下载
+
+直接访问 Skill 文件页面，复制内容保存为 `neat.md`：
+
+👉 [neat-freak-xy/SKILL.md](https://github.com/CodeApe-Xiaoyin/xiaoyin-skills/blob/main/neat-freak-xy/SKILL.md)
+
+放入：
+- 全局：`~/.claude/skills/neat.md`
+- 项目：`.claude/skills/neat.md`
+
+### 安装后验证
+
+重启 Claude Code，输入以下任意命令验证 Skill 已加载：
+
+```
+/neat
+```
+
+或直接说："整理文档" / "收尾" / "保存进度"
+
+### 其他 Agent（Codex / OpenCode / OpenClaw 等）
 
 将 Skill 文件内容作为系统提示词或 Agent 指令加载即可。Neat 内置了能力探测，会自动适配：
 - 不支持 bash → 跳过 Git 检查
