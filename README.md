@@ -1,344 +1,328 @@
-# Neat-Freak Enhanced
+# Neat — AI Coding Agent 项目知识库管理 Skill
 
-> 基于原 `khazix-skills/tree/main/neat-freak` Skill 的二次整理与增强版本。  
-> 本项目不是原作者仓库，仅用于个人学习、工作流优化和上下文交接实践。
+> **让 AI Agent 在多轮对话、多次会话、多人协作中不丢失项目进度。**
 
-## 免责声明
-
-本项目并非 `neat-freak` Skill 的原始作者作品，也不代表原作者立场。  
-本仓库内容是在原思路基础上，围绕 **Claude Code / Codex 等 AI 编程 Agent 的上下文管理、项目文档同步、会话交接** 场景进行的二次整理、补充和优化。
-
-如果你正在寻找原始项目，请以原作者仓库为准。
+Neat 是一个面向 AI 编程 Agent（Claude Code、OpenAI Codex、OpenCode、OpenClaw 等）的 **Skill 插件**，用于自动同步项目文档、管理上下文交接和控制文档膨胀。
 
 ---
 
-## 项目简介
+## 致谢 & 原始出处
 
-`Neat-Freak Enhanced` 是一个面向 AI 编程 Agent 的项目知识库整理 Skill。
+本项目基于 **[khazix-skills/neat-freak](https://github.com/khazix-skills/tree/main/neat-freak)** 进行二次开发和优化。
 
-它的核心目标是：
+感谢原作者的设计理念和初始实现。当前版本（0.4）在原版基础上进行了以下改进：
+- 全面结构化（YAML 格式），降低 Skill 自身 token 消耗
+- 触发关键词直接映射到执行模式，消除两步推理
+- 新增 `reset` 模式、`sync_status` 防中断机制、连续 checkpoint 保留规则
+- Next Session Prompt 从 5 个合并为 2 个，去除重复
+- 新增 monorepo 支持、跨平台能力降级、并发写入检测
 
-- 在一次开发会话结束时，整理项目当前状态
-- 同步 `CLAUDE.md` / `AGENTS.md`、`README.md`、`docs/` 等项目文档
-- 在上下文占用较高时，生成轻量级交接文档
-- 帮助新会话快速接手当前项目进度
-- 避免 AI 在长会话后遗忘约定、重复踩坑或误读项目状态
-
-简单来说，它不是单纯的“总结聊天记录”，而是一个用于 AI 协作开发的 **项目接力与文档同步工具**。
-
----
-
-## 为什么需要这个 Skill？
-
-在使用 Claude Code、Codex 或其他 AI 编程工具时，长会话经常会遇到这些问题：
-
-- 上下文占用到 40%～60% 后，Agent 开始不稳定
-- 前面已经讨论过的约定被遗忘
-- 已经失败过的方案被重复尝试
-- 项目文档和真实代码状态不一致
-- 新开会话后，Agent 不知道当前项目进度
-- `README.md`、`CLAUDE.md`、`docs/` 之间信息重复、过期或冲突
-
-这个 Skill 的作用，就是在合适的时候把当前项目状态沉淀下来，让下一次新会话可以快速恢复现场。
+如需查看原版实现，请访问：**https://github.com/khazix-skills/tree/main/neat-freak**
 
 ---
 
-## 核心能力
+## 它解决什么问题？
 
-### 1. 项目文档同步
+AI 编程 Agent 存在三个核心痛点：
 
-根据当前代码和开发进度，检查并同步：
-
-- `CLAUDE.md`
-- `AGENTS.md`
-- `README.md`
-- `docs/HANDOFF.md`
-- `docs/SESSION_LOG.md`
-- 其他相关 `docs/*` 文档
-- Agent memory，若当前工具支持
-
-它不是每次强行改所有文件，而是每次都判断：
-
-- 哪些文档需要更新
-- 哪些文档已经检查但无需修改
-- 哪些信息需要延后确认
-- 哪些旧内容应该删除或合并
+| 痛点 | 表现 | Neat 的解决方式 |
+|------|------|----------------|
+| **上下文丢失** | 对话过长后 Agent 忘记之前做了什么 | Checkpoint 模式：用最少 token 保存当前开发现场 |
+| **跨会话断档** | 新会话完全不知道上一轮进度 | HANDOFF.md：结构化交接文档，新 Agent 30 秒接手 |
+| **文档膨胀** | CLAUDE.md / docs 越写越长越乱 | 行数预算 + 重写策略 + 自动归档 |
 
 ---
 
-### 2. 上下文接力
+## 四种模式
 
-当 Claude Code 或其他 Agent 的上下文占用较高时，可以使用轻量接力模式，把当前工作现场沉淀到 `docs/HANDOFF.md`。
+### 1. Checkpoint — 轻量保存
 
-新会话默认只需要先读取：
+**适用场景：** 上下文快满了、准备 `/clear`、额度不足、要开新对话
 
-```text
-CLAUDE.md / AGENTS.md
-docs/HANDOFF.md
 ```
-
-这样可以避免新会话一开始就读取整个 `docs/` 目录，导致上下文被大量占用。
-
----
-
-### 3. 三种运行模式
-
-#### Checkpoint Mode
-
-适合上下文已经偏高、准备 `/clear` 或新开会话时使用。
-
-触发示例：
-
-```text
 /neat checkpoint
 ```
 
-适合场景：
+- 只更新 `docs/HANDOFF.md`（≤ 30 行正文）
+- 必要时更新 `CLAUDE.md`
+- 不全量扫描 docs
+- 不修改业务代码
 
-- 上下文到 40%～60%
-- Agent 开始不稳定
-- 准备清空会话
-- 当前任务还没有完全结束
-- 只想保住当前开发现场
+### 2. Handoff — 阶段同步（默认模式）
 
-主要输出：
+**适用场景：** 一个阶段开发完成、需要整理文档、准备交接
 
-- 更新 `docs/HANDOFF.md`
-- 必要时更新 `CLAUDE.md` / `AGENTS.md`
-- 不默认全量扫描所有 docs
-- 不默认修改业务代码
-
----
-
-#### Handoff Mode
-
-默认模式，适合阶段性开发完成后的标准同步。
-
-触发示例：
-
-```text
+```
 /neat
 ```
 
-适合场景：
-
-- 一个阶段做完了
-- 想同步当前项目进度
-- 想让下一轮会话或其他 Agent 能够接手
-- 希望项目文档和真实代码状态一致
-
-主要输出：
-
-- 更新 `docs/HANDOFF.md`
+- 评估并更新所有知识层
+- 更新 `docs/HANDOFF.md`（≤ 60 行正文）
 - 更新 `docs/SESSION_LOG.md`
-- 检查并同步 `CLAUDE.md` / `AGENTS.md`
-- 检查并同步 `README.md`
-- 按需更新相关 `docs/*`
+- 按需更新 `CLAUDE.md`、`README.md`、其他 docs
 
----
+### 3. Full — 深度治理
 
-#### Full Mode
+**适用场景：** 发版前整理、新人接手、文档已经混乱
 
-深度整理模式，适合发版前、交付前或文档已经混乱时使用。
-
-触发示例：
-
-```text
+```
 /neat full
 ```
 
-适合场景：
+- 扫描所有 docs 文件名，按变更影响矩阵判断哪些需要读取
+- 深度对齐所有文档
+- 检查跨项目影响
+- `HANDOFF.md` ≤ 100 行正文
 
-- 项目准备交付
-- 新人即将接手
-- 文档已经明显过期
-- 多个文档之间存在冲突
-- 需要完整整理项目知识库
+### 4. Reset — 从零重建
 
-主要输出：
+**适用场景：** 文档体系已经乱了，需要推倒重来
 
-- 全面检查项目 Markdown 文档
-- 对齐 README、CLAUDE.md、AGENTS.md、docs
-- 删除过期、重复、冲突内容
-- 检查环境变量、启动命令、API、架构说明等是否一致
-
----
-
-## 推荐工作流
-
-### 上下文偏高时
-
-当 Claude Code 上下文占用达到 40%～60%，或者你感觉它开始不稳定时：
-
-```text
-/neat checkpoint
-
-当前上下文已经偏高，请只做轻量上下文交接，不要全量整理 docs，不要修改业务代码。
-只更新 docs/HANDOFF.md，必要时更新 CLAUDE.md / AGENTS.md。
-目标是让我 /clear 后新会话能继续当前开发。
+```
+/neat reset
 ```
 
-然后新开会话后输入：
-
-```text
-请先只阅读 CLAUDE.md / AGENTS.md 和 docs/HANDOFF.md，不要读取其他 docs，不要修改代码。
-
-读完后用中文回答：
-1. 当前项目是什么
-2. 当前开发进度到哪里了
-3. 已完成内容有哪些
-4. 未完成任务有哪些
-5. 当前风险是什么
-6. 下一步建议怎么做
-
-如果你认为还需要更多上下文，再告诉我你需要读哪个文件以及为什么。
-```
+- 将现有 `HANDOFF.md`、`SESSION_LOG.md` 归档到 `docs/archive/`
+- 从当前 Git 状态和代码重新生成干净文档
 
 ---
 
-### 阶段开发完成时
+## 触发方式
 
-```text
-/neat
+除了显式命令，Neat 也支持自然语言触发。每个关键词直接映射到对应模式：
 
-请同步当前项目文档、CLAUDE.md / AGENTS.md、HANDOFF 和 SESSION_LOG。
-该改的改，不需要改的请在摘要里说明已检查无需修改。
-```
+| 模式 | 命令 | 中文关键词 | 英文关键词 |
+|------|------|-----------|-----------|
+| Checkpoint | `/neat checkpoint` | 保存进度、存档、上下文快满了、准备 clear、额度快没了 | save progress, before clear |
+| Handoff | `/neat` `/sync` | 整理文档、收尾、这阶段做完了、同步文档 | sync docs, wrap up |
+| Full | `/neat full` | 深度整理、新人接手、发版前整理、文档乱了 | full cleanup, pre-release docs |
+| Reset | `/neat reset` | 重建文档、从零整理 | reset docs |
 
----
-
-### 发版或交付前
-
-```text
-/neat full
-
-请做深度文档和记忆整理，检查 README、CLAUDE.md / AGENTS.md、docs、agent memory 和跨项目影响。
-```
+**不会触发的情况：** "整理函数"、"整理 CSS"、"整理代码格式" 等不涉及文档/记忆/会话管理的请求。
 
 ---
 
-## 主要文件说明
+## 安装方式
 
-| 文件 | 作用 |
-|---|---|
-| `SKILL.md` | Skill 主体说明文件 |
-| `README.md` | 当前项目说明文档 |
-| `docs/HANDOFF.md` | 新会话接力入口 |
-| `docs/SESSION_LOG.md` | 多轮开发历史记录 |
-| `CLAUDE.md` | Claude Code 项目记忆与规则 |
-| `AGENTS.md` | Codex / 通用 Agent 项目规则 |
+### Claude Code
 
----
-
-## 设计原则
-
-### 1. 不强行修改所有文档
-
-每次运行都应该评估所有关键知识层，但不代表每次都必须修改所有文件。
-
-正确行为是：
-
-```text
-检查 → 判断是否受影响 → 必要时修改 → 无需修改则说明原因
-```
-
----
-
-### 2. 交接文档要短而准
-
-`docs/HANDOFF.md` 不应该变成流水账。
-
-它应该回答：
-
-- 当前目标是什么
-- 已经完成了什么
-- 哪些文件被修改
-- 还剩什么没完成
-- 当前有什么风险
-- 下次会话从哪里开始
-- 哪些失败方案不要重复
-
----
-
-### 3. 新会话不要默认读取所有 docs
-
-默认只读：
-
-```text
-CLAUDE.md / AGENTS.md
-docs/HANDOFF.md
-```
-
-其他文件按需读取。
-
-这样既能保证接续准确，又不会在新会话刚开始就消耗大量上下文。
-
----
-
-### 4. 事实优先于记忆
-
-如果项目是 Git 仓库，应优先使用：
+将 `SKILL_neat_0.4.md` 文件放入你的 Skill 目录：
 
 ```bash
-git status --short
-git branch --show-current
-git diff --stat
-git log -1 --oneline
+# 全局安装（所有项目可用）
+cp SKILL_neat_0.4.md ~/.claude/skills/neat.md
+
+# 项目级安装（仅当前项目）
+mkdir -p .claude/skills
+cp SKILL_neat_0.4.md .claude/skills/neat.md
 ```
 
-用 Git 状态确认真实修改，而不是只依赖聊天记忆。
+### 其他 Agent
+
+将 Skill 文件内容作为系统提示词或 Agent 指令加载即可。Neat 内置了能力探测，会自动适配：
+- 不支持 bash → 跳过 Git 检查
+- 不支持文件写入 → 只输出摘要
+- 不支持 Agent memory → 标注 unavailable
 
 ---
 
-## 适用工具
+## 工作原理
 
-理论上适用于：
+### 执行流程
 
-- Claude Code
-- OpenAI Codex
-- OpenCode
-- OpenClaw
-- 其他支持 Skill / AGENTS.md / 项目规则文件的 AI 编程 Agent
-
-不同工具的记忆文件和项目规则文件路径可能不同，请根据实际环境调整。
-
----
-
-## 与原版的关系
-
-本版本基于原 `neat-freak` 的思路进行二次整理，主要增强点包括：
-
-- 增加 `Checkpoint Mode`
-- 增加 `Handoff Mode`
-- 增加 `Full Mode`
-- 强化 `docs/HANDOFF.md` 作为新会话入口
-- 增加新会话读取策略
-- 增加 Git 状态核查
-- 增加同步责任清单
-- 增加“已检查但未修改”的摘要要求
-- 避免新会话默认全量读取 docs
-
-再次说明：本项目不是原作者发布的官方版本。
-
----
-
-## 使用建议
-
-如果你只是日常开发，不建议频繁使用 Full Mode。
-
-推荐节奏：
-
-```text
-上下文偏高 → /neat checkpoint
-阶段完成 → /neat
-发版交付 → /neat full
+```
+能力探测 → 前置判断 → 确认项目根 → Git 状态
+    ↓
+读取现有 HANDOFF.md（检查 commit 一致性）
+    ↓
+写入 HANDOFF.md (sync_status: partial)
+    ↓
+更新 SESSION_LOG → docs/* → CLAUDE.md → README
+    ↓
+更新 Agent memory → sync_status 改为 complete
+    ↓
+自检 → 输出摘要 + 下一轮 Prompt
 ```
 
-这样既能保持项目文档同步，又不会因为过度整理占用大量上下文。
+### 知识层同步
+
+每次执行都会对以下知识层给出明确状态，不会静默跳过：
+
+| 知识层 | 状态值 |
+|-------|--------|
+| Agent memory | `updated` / `checked-no-change` / `unavailable` |
+| CLAUDE.md / AGENTS.md | `updated` / `checked-no-change` / `created` |
+| README.md | `updated` / `checked-no-change` / `not-affected` |
+| docs/HANDOFF.md | `updated` / `created` |
+| docs/SESSION_LOG.md | `updated` / `created` / `not-needed` |
+| 其他 docs/* | `updated` / `checked-no-change` / `deferred:原因` |
+
+---
+
+## 生成的文件示例
+
+### docs/HANDOFF.md
+
+```yaml
+---
+schema: neat/0.4
+updated: 2025-06-15 14:30 UTC+8
+sync_status: complete
+project: my-app
+path: /home/user/my-app
+branch: feat/user-auth
+commit: a1b2c3d
+worktree: clean
+source: committed
+---
+```
+
+```markdown
+## State
+用户认证模块基本完成，JWT 签发和验证已实现，中间件已挂载
+
+## Done
+- JWT 签发/验证工具函数
+- auth middleware
+- /api/login 和 /api/register 路由
+- 密码 bcrypt 加密
+
+## Pending
+- refresh token 轮换
+- 登出黑名单
+
+## Risks
+- JWT secret 硬编码在 .env.example 中，生产环境需替换
+
+## Failed — Do Not Retry
+- Active: 尝试用 cookie 存 JWT，Safari SameSite 问题无法解决，改用 Authorization header
+
+## Validation
+build: passed
+tests: passed (12/12)
+typecheck: passed
+manual: not done
+
+## Evidence
+- Verified: tests passed via `npm test` output
+- Inferred: Safari 兼容性基于文档推断
+- Unknown: 生产环境性能
+
+## Next
+1. 实现 refresh token 轮换逻辑
+2. 补充登出黑名单（Redis 或内存）
+3. 手动测试完整登录流程
+```
+
+---
+
+## 核心安全机制
+
+### 防信息丢失
+
+- **连续 checkpoint 保留规则：** 连续多次 checkpoint 时，`Done` 和 `Failed` 条目在 HANDOFF 中累积，直到下一次 handoff/full 时才转入 SESSION_LOG
+- **Failed 条目保护：** 重写 HANDOFF 时，`Active` 状态的失败记录必须保留，防止后续 Agent 重蹈覆辙
+
+### 防中断损坏
+
+- **sync_status 机制：** 写入 HANDOFF 时先标记 `partial`，全部同步完成后改为 `complete`。下一个 Agent 检测到 `partial` 会先完成同步
+
+### 防文档过期
+
+- **commit 一致性检查：** 新会话读取 HANDOFF 时，对比 `commit` 字段与当前 `git log -1`，不一致则提醒代码可能已变更
+
+### 防密钥泄露
+
+- 自动检测 `sk-`、`Bearer`、`ghp_`、`DATABASE_URL=` 等 40+ 种敏感模式
+- 高熵随机字符串启发式检测
+- 写入任何文件前自动扫描
+
+### 防文档膨胀
+
+| 文件 | 行数预算 |
+|------|---------|
+| HANDOFF（checkpoint） | ≤ 30 行 |
+| HANDOFF（handoff） | ≤ 60 行 |
+| HANDOFF（full） | ≤ 100 行 |
+| CLAUDE.md（小项目） | ≤ 80 行 |
+| CLAUDE.md（中项目） | ≤ 150 行 |
+| CLAUDE.md（大项目） | ≤ 250 行 |
+| SESSION_LOG | > 10 条时自动压缩，> 500 行时归档 |
+
+---
+
+## 新会话如何接手
+
+Neat 执行完毕后会输出一段可复制的 **下一轮 Prompt**。在新会话中直接粘贴即可接手：
+
+### 标准版（checkpoint / handoff / full 通用）
+
+```
+请先阅读 CLAUDE.md / AGENTS.md 和 docs/HANDOFF.md。
+不要修改代码。
+
+请先总结：
+1. 项目状态和 Git 信息
+2. 已完成/未完成任务
+3. 风险和验证状态
+4. 下一步建议
+
+如果 HANDOFF 的 commit 与当前 git log -1 不一致，先指出。
+需要更多文件请先说明理由，等确认后再读。
+```
+
+### 应急版（异常中断后恢复）
+
+```
+异常中断后恢复。不要修改代码。
+
+先执行：
+1. git branch --show-current
+2. git status --short
+3. git log -1 --oneline
+4. 读取 docs/HANDOFF.md（如存在）
+
+总结：当前分支、工作区状态、中断前任务、风险、下一步验证。
+如果 HANDOFF.md 不存在，先根据 Git 状态建议创建最小 handoff。
+```
+
+---
+
+## 可选配置
+
+在 `CLAUDE.md` 中添加以下配置块即可自定义 Neat 行为：
+
+```yaml
+neat:
+  handoff_path: docs/HANDOFF.md     # HANDOFF 文件路径
+  session_log: true                  # 是否生成 SESSION_LOG
+  language: auto                     # 输出语言（auto = 跟随项目语言）
+```
+
+---
+
+## 与其他工具的关系
+
+| 概念 | Neat 的定位 |
+|------|------------|
+| CLAUDE.md | 项目长期真相（技术栈、命令、红线）→ Neat 按需更新 |
+| AGENTS.md | 跨 Agent 通用规则 → Neat 确保与 CLAUDE.md 不冲突 |
+| docs/HANDOFF.md | 当前会话状态快照 → **Neat 核心产出物** |
+| docs/SESSION_LOG.md | 多轮历史记录 → Neat 管理压缩和归档 |
+| README.md | 面向用户的说明 → Neat 仅在启动/使用方式变化时更新 |
+
+---
+
+## 版本历史
+
+| 版本 | 主要变化 |
+|------|---------|
+| 0.2 (原版) | 基于 khazix-skills/neat-freak 的初始实现 |
+| 0.3 | 全面结构化（YAML），新增能力探测、monorepo 支持、token 预算 |
+| **0.4** | 触发词→模式一步映射，删除冗余上下文阈值，Next Session Prompt 合并精简，新增 sync_status / Failed 保留 / reset 模式完整步骤，行数预算替代 token 预算 |
 
 ---
 
 ## License
 
-请根据原项目许可证和你自己的使用场景决定如何发布。  
-如果你基于原作者内容进行二次分发，建议保留原作者署名、原项目链接和许可证说明。
+本项目基于 [khazix-skills/neat-freak](https://github.com/khazix-skills/tree/main/neat-freak) 二次开发。请遵循原项目的许可协议。
