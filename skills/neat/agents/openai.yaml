@@ -1,4 +1,4 @@
 interface:
   display_name: "Neat"
-  short_description: "Compact context before starting a new conversation"
-  default_prompt: "Use $neat checkpoint to produce a read-only handoff plan before preserving this conversation for the next one."
+  short_description: "Preserve context and converge project knowledge"
+  default_prompt: "Use $neat checkpoint to plan a bounded context save, or $neat reconcile to plan a safe knowledge-base cleanup. Never write before I approve the plan."

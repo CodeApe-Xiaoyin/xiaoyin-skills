@@ -115,16 +115,49 @@ class NeatGuardTests(unittest.TestCase):
         path.chmod(0o600)
         return path
 
+    def finalize_args(
+        self,
+        candidate: Path,
+        fingerprint: dict,
+        target_sha: str = "missing",
+        *,
+        target: str = "docs/HANDOFF.md",
+        candidate_sha: str | None = None,
+        allow_oversized_target: bool = False,
+    ) -> Namespace:
+        plan_id = "a" * 16
+        candidate_relative = str(candidate.relative_to(self.root))
+        approval = {
+            "schema": "neat/continuity-approval/0.5",
+            "plan_id": plan_id,
+            "root_id": guard.sha256_bytes(str(self.root.resolve()).encode()),
+            "target": target,
+            "candidate": candidate_relative,
+            "backup": ".neat/HANDOFF.last-good.md",
+            "expected_target_sha": target_sha,
+            "expected_candidate_sha": candidate_sha or guard.sha256_file(candidate),
+            "candidate_bytes": candidate.stat().st_size,
+            "captured_head": fingerprint["head"],
+            "captured_fingerprint": fingerprint["fingerprint"],
+            "evidence": [],
+            "allow_oversized_target": allow_oversized_target,
+        }
+        return Namespace(
+            root=str(self.root),
+            candidate=candidate_relative,
+            target=target,
+            backup=".neat/HANDOFF.last-good.md",
+            approval_json=json.dumps(approval, sort_keys=True),
+            approved_plan_id=plan_id,
+            approved_plan_digest=guard.canonical_json_sha(approval),
+        )
+
     def finalize(self, candidate: Path, fingerprint: dict, target_sha: str = "missing", **kwargs):
         return guard.finalize(
-            Namespace(
-                root=str(self.root),
-                candidate=str(candidate.relative_to(self.root)),
-                target="docs/HANDOFF.md",
-                backup=".neat/HANDOFF.last-good.md",
-                expected_target_sha=target_sha,
-                expected_candidate_sha=guard.sha256_file(candidate),
-                expected_worktree=fingerprint["fingerprint"],
+            self.finalize_args(
+                candidate,
+                fingerprint,
+                target_sha,
                 allow_oversized_target=kwargs.get("allow_oversized_target", False),
             )
         )
@@ -306,12 +339,7 @@ class NeatGuardTests(unittest.TestCase):
         candidate = self.write_candidate(state)
         expected_sha = guard.sha256_file(candidate)
         candidate.write_bytes(handoff(state, goal="Changed after validation."))
-        args = Namespace(
-            root=str(self.root), candidate="docs/HANDOFF.md.next", target="docs/HANDOFF.md",
-            backup=".neat/HANDOFF.last-good.md", expected_target_sha="missing",
-            expected_candidate_sha=expected_sha, expected_worktree=state["fingerprint"],
-            allow_oversized_target=False,
-        )
+        args = self.finalize_args(candidate, state, candidate_sha=expected_sha)
         with self.assertRaisesRegex(guard.GuardError, "candidate changed"):
             guard.finalize(args)
 
@@ -319,16 +347,69 @@ class NeatGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(guard.GuardError, "metadata"):
             self.finalize(candidate, state)
 
+    def test_continuity_plan_is_zero_write_and_binds_approval(self):
+        state = self.git()
+        candidate_data = handoff(state)
+        tracked = self.root / "tracked.txt"
+        os.utime(tracked, None)
+
+        def snapshot() -> dict:
+            return {
+                path.relative_to(self.root).as_posix(): (
+                    guard.sha256_file(path),
+                    path.stat().st_mtime_ns,
+                    path.stat().st_mode,
+                )
+                for path in self.root.rglob("*")
+                if path.is_file()
+            }
+
+        before = snapshot()
+        result = guard.continuity_plan_context(
+            Namespace(
+                root=str(self.root),
+                plan_id="b" * 16,
+                target="docs/HANDOFF.md",
+                candidate_sha=guard.sha256_bytes(candidate_data),
+                candidate_bytes=len(candidate_data),
+                evidence=["tracked.txt"],
+                allow_oversized_target=False,
+            )
+        )
+        after = snapshot()
+        self.assertEqual(before, after)
+        self.assertEqual(result["phase_a_writes"], 0)
+        self.assertEqual(result["approval"]["expected_target_sha"], "missing")
+        self.assertEqual(result["approval"]["expected_candidate_sha"], guard.sha256_bytes(candidate_data))
+        self.assertEqual(result["approval"]["evidence"][0]["path"], "tracked.txt")
+
+    def test_finalize_requires_approved_plan_and_rejects_swapped_candidate(self):
+        state = self.git()
+        candidate = self.write_candidate(state)
+        process = subprocess.run(
+            [
+                sys.executable, str(MODULE_PATH), "finalize", "--root", str(self.root),
+                "--candidate", "docs/HANDOFF.md.next", "--target", "docs/HANDOFF.md",
+            ],
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(process.returncode, 0)
+        self.assertFalse((self.root / "docs/HANDOFF.md").exists())
+
+        args = self.finalize_args(candidate, state)
+        approval = json.loads(args.approval_json)
+        approval["expected_candidate_sha"] = "f" * 64
+        args.approval_json = json.dumps(approval, sort_keys=True)
+        with self.assertRaisesRegex(guard.GuardError, "digest"):
+            guard.finalize(args)
+        self.assertFalse((self.root / "docs/HANDOFF.md").exists())
+
     def test_invalid_candidate_is_cleaned_by_finalize(self):
         state = self.git()
         candidate = self.write_candidate(state)
         candidate.write_text(candidate.read_text() + "\napi_token = abcdefghijklmnopqrstuvwxyz123456\n")
-        args = Namespace(
-            root=str(self.root), candidate="docs/HANDOFF.md.next", target="docs/HANDOFF.md",
-            backup=".neat/HANDOFF.last-good.md", expected_target_sha="missing",
-            expected_candidate_sha=guard.sha256_file(candidate), expected_worktree=state["fingerprint"],
-            allow_oversized_target=False,
-        )
+        args = self.finalize_args(candidate, state)
         with self.assertRaisesRegex(guard.GuardError, "validation failed"):
             guard.finalize(args)
         self.assertFalse(candidate.exists())
@@ -371,12 +452,7 @@ class NeatGuardTests(unittest.TestCase):
     def test_path_roles_symlinks_and_hardlinks_are_rejected(self):
         state = self.git()
         candidate = self.write_candidate(state)
-        args = Namespace(
-            root=str(self.root), candidate="docs/HANDOFF.md.next", target="AGENTS.md",
-            backup=".neat/HANDOFF.last-good.md", expected_target_sha="missing",
-            expected_candidate_sha=guard.sha256_file(candidate), expected_worktree=state["fingerprint"],
-            allow_oversized_target=False,
-        )
+        args = self.finalize_args(candidate, state, target="AGENTS.md")
         with self.assertRaisesRegex(guard.GuardError, "candidate must"):
             guard.finalize(args)
 
@@ -384,12 +460,7 @@ class NeatGuardTests(unittest.TestCase):
         outside = self.root / "real-candidate"
         outside.write_bytes(handoff(state))
         candidate.symlink_to(outside)
-        symlink_args = Namespace(
-            root=str(self.root), candidate="docs/HANDOFF.md.next", target="docs/HANDOFF.md",
-            backup=".neat/HANDOFF.last-good.md", expected_target_sha="missing",
-            expected_candidate_sha=guard.sha256_file(outside), expected_worktree=state["fingerprint"],
-            allow_oversized_target=False,
-        )
+        symlink_args = self.finalize_args(candidate, state, candidate_sha=guard.sha256_file(outside))
         with self.assertRaisesRegex(guard.GuardError, "symlink"):
             guard.finalize(symlink_args)
 
@@ -403,12 +474,7 @@ class NeatGuardTests(unittest.TestCase):
     def test_shell_hostile_relative_path_is_rejected(self):
         state = self.git()
         candidate = self.write_candidate(state)
-        args = Namespace(
-            root=str(self.root), candidate="docs/HANDOFF.md.next", target="docs/HANDOFF;touch-PWNED.md",
-            backup=".neat/HANDOFF.last-good.md", expected_target_sha="missing",
-            expected_candidate_sha=guard.sha256_file(candidate), expected_worktree=state["fingerprint"],
-            allow_oversized_target=False,
-        )
+        args = self.finalize_args(candidate, state, target="docs/HANDOFF;touch-PWNED.md")
         with self.assertRaisesRegex(guard.GuardError, "unsafe relative path"):
             guard.finalize(args)
 
