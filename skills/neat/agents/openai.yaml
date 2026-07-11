@@ -1,0 +1,4 @@
+interface:
+  display_name: "Neat"
+  short_description: "Compact context before starting a new conversation"
+  default_prompt: "Use $neat checkpoint to produce a read-only handoff plan before preserving this conversation for the next one."
