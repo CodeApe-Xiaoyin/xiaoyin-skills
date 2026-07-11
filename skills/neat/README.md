@@ -38,12 +38,24 @@ mkdir -p ~/.codex/skills
 cp -R skills/neat ~/.codex/skills/neat
 ```
 
+### Git 安装
+
 如果你是从 GitHub 克隆仓库：
 
 ```bash
 git clone https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
 mkdir -p ~/.codex/skills
 cp -R xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+只拉 Neat 子目录：
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
+cd xiaoyin-skills
+git sparse-checkout set skills/neat
+mkdir -p ~/.codex/skills
+cp -R skills/neat ~/.codex/skills/neat
 ```
 
 升级已有安装时建议使用镜像同步：
@@ -59,6 +71,16 @@ Claude Code：
 mkdir -p ~/.claude/skills
 cp -R xiaoyin-skills/skills/neat ~/.claude/skills/neat
 ```
+
+### npx 下载
+
+如果你有 Node.js，可以用 `npx degit` 下载 Neat 子目录：
+
+```bash
+npx degit CodeApe-Xiaoyin/xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+目前没有独立 npm 包，因此暂不支持 `npm install neat`。如果后面要做一键安装器，可以再把 npm package 或 install script 作为单独发布物。
 
 要求：
 

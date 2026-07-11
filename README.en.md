@@ -21,12 +21,24 @@ The easiest option is to ask a Skill-aware agent:
 Install this skill: https://github.com/CodeApe-Xiaoyin/xiaoyin-skills/tree/main/skills/neat
 ```
 
-Manual install for Codex:
+### Option 1: Git
+
+Clone the full Skill collection, then copy Neat:
 
 ```bash
 git clone https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
 mkdir -p ~/.codex/skills
 cp -R xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+To fetch only the Neat subdirectory, use Git sparse checkout:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
+cd xiaoyin-skills
+git sparse-checkout set skills/neat
+mkdir -p ~/.codex/skills
+cp -R skills/neat ~/.codex/skills/neat
 ```
 
 Upgrade an existing install with a mirror sync so removed files do not stay behind:
@@ -42,6 +54,16 @@ For Claude Code:
 mkdir -p ~/.claude/skills
 cp -R xiaoyin-skills/skills/neat ~/.claude/skills/neat
 ```
+
+### Option 2: npx
+
+If Node.js is available, `npx degit` can download only the Neat subdirectory without Git history:
+
+```bash
+npx degit CodeApe-Xiaoyin/xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+There is no standalone npm package yet, so `npm install neat` is not supported. A dedicated npm package or install script can be added later if a cross-platform one-command installer becomes useful.
 
 Do not copy only `SKILL.md`. Neat requires its guard and scanner scripts.
 

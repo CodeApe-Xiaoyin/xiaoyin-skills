@@ -38,12 +38,24 @@ mkdir -p ~/.codex/skills
 cp -R skills/neat ~/.codex/skills/neat
 ```
 
+### Git Install
+
 If installing from GitHub:
 
 ```bash
 git clone https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
 mkdir -p ~/.codex/skills
 cp -R xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+Fetch only the Neat subdirectory:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
+cd xiaoyin-skills
+git sparse-checkout set skills/neat
+mkdir -p ~/.codex/skills
+cp -R skills/neat ~/.codex/skills/neat
 ```
 
 For upgrades, mirror the package:
@@ -59,6 +71,16 @@ For Claude Code:
 mkdir -p ~/.claude/skills
 cp -R xiaoyin-skills/skills/neat ~/.claude/skills/neat
 ```
+
+### npx Download
+
+If Node.js is available, `npx degit` can download the Neat subdirectory:
+
+```bash
+npx degit CodeApe-Xiaoyin/xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+There is no standalone npm package yet, so `npm install neat` is not supported. A dedicated npm package or install script can be added later as a separate release artifact.
 
 Requirements:
 

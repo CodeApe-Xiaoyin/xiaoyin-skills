@@ -21,12 +21,24 @@
 帮我安装这个 skill：https://github.com/CodeApe-Xiaoyin/xiaoyin-skills/tree/main/skills/neat
 ```
 
-也可以手动安装到 Codex：
+### 方式一：Git 安装
+
+克隆整个 Skills 合集，然后复制 Neat：
 
 ```bash
 git clone https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
 mkdir -p ~/.codex/skills
 cp -R xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+如果只想拉 Neat 子目录，可以用 Git sparse checkout：
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/CodeApe-Xiaoyin/xiaoyin-skills.git
+cd xiaoyin-skills
+git sparse-checkout set skills/neat
+mkdir -p ~/.codex/skills
+cp -R skills/neat ~/.codex/skills/neat
 ```
 
 升级已有安装时，用镜像同步，避免旧文件残留：
@@ -42,6 +54,16 @@ Claude Code 可以复制到对应 Skill 目录：
 mkdir -p ~/.claude/skills
 cp -R xiaoyin-skills/skills/neat ~/.claude/skills/neat
 ```
+
+### 方式二：npx 轻量下载
+
+如果你有 Node.js，也可以用 `npx degit` 下载 Neat 子目录，不保留 Git 历史：
+
+```bash
+npx degit CodeApe-Xiaoyin/xiaoyin-skills/skills/neat ~/.codex/skills/neat
+```
+
+目前还没有发布独立 npm 包，所以暂不支持 `npm install neat` 这类安装方式。等以后需要跨平台一键安装器时，可以单独补 npm package 或 install script。
 
 不要只复制 `SKILL.md`。Neat 依赖 `scripts/` 里的守卫和扫描脚本。
 
